@@ -1,33 +1,14 @@
 import fs from 'fs';
-import path from 'path';
 import { Telegraf } from 'telegraf';
-import youtubedl from 'youtube-dl-exec';
-import ffmpeg from '@ffmpeg-installer/ffmpeg';
+import ytdl from 'ytdl-core';
+import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
+import { spawn } from 'child_process';
+
 import dotenv from 'dotenv';
-
 dotenv.config();
-const ffmpegPath = ffmpeg.path;
+
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-
-const getInfo = (url, flags) => youtubedl(url, { dumpSingleJson: true, ...flags });
-
-const fromInfo = (infoFile, flags) => youtubedl.exec('', { loadInfoJson: infoFile, ...flags });
-
-const downloadVideo = async url => {
-  const info = await getInfo(url);
-
-  // write the info to a file for youtube-dl to read it
-  fs.writeFileSync('videoInfo.json', JSON.stringify(info));
-
-  // the info the we retrive can be read directly or passed to youtube-dl
-  console.log(info.description);
-  console.log((await fromInfo('videoInfo.json', { listThumbnails: true })).stdout);
-
-  // and finally we can download the video
-  await fromInfo('videoInfo.json', { output: 'path/to/output' });
-
-  return 'path/to/output';
-};
+const outputFileName = 'videoInfo.mp4';
 
 const deleteFile = filePath => {
   fs.unlink(filePath, error => {
@@ -39,27 +20,77 @@ const deleteFile = filePath => {
   });
 };
 
-bot.start(ctx =>
-  ctx.reply('Привет! Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.')
-);
-bot.help(ctx =>
-  ctx.reply('Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.')
-);
+const handleStart = ctx => ctx.reply('Привет! Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.');
+const handleHelp = ctx => ctx.reply('Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.');
 
-bot.on('text', async ctx => {
+const handleText = async ctx => {
   const url = ctx.message.text;
 
   try {
     ctx.reply('Скачиваю видео...');
-    const videoPath = await downloadVideo(url);
-    ctx.replyWithVideo({ source: fs.createReadStream(videoPath) });
-    deleteFile(videoPath);
+
+    const info = await ytdl.getInfo(url);
+    const videoFormat = info.formats
+      .filter(format => format.container === 'mp4')
+      .find(format => format.qualityLabel === '480p' ||
+      parseInt(format.height, 10) <= 480);
+
+    const audioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+
+    if (videoFormat && audioFormat) {
+      const videoStream = ytdl.downloadFromInfo(info, { format: videoFormat });
+      const audioStream = ytdl.downloadFromInfo(info, { format: audioFormat });
+
+      const ffmpegArgs = [
+        '-i', 'pipe:3',
+        '-i', 'pipe:4',
+        '-c:v', 'copy',
+        '-c:a', 'aac',
+        '-strict', 'experimental',
+        '-movflags', 'frag_keyframe+empty_moov',
+        outputFileName
+      ];
+
+      const ffmpeg = spawn(ffmpegPath, ffmpegArgs, {
+        stdio: [
+          'pipe', 'pipe', 'pipe',
+          'pipe', 'pipe',
+        ],
+      });
+
+      videoStream.pipe(ffmpeg.stdio[3]);
+      audioStream.pipe(ffmpeg.stdio[4]);
+
+      ffmpeg.on('exit', async (code, signal) => {
+        if (code === 0) {
+          console.log(`Video with audio has been downloaded and saved as ${outputFileName}`);
+          ctx.reply('Видео скачено, отправляю вам...');
+          await ctx.replyWithVideo({ source: fs.createReadStream(outputFileName) });
+          await deleteFile(outputFileName);
+        } else {
+          ctx.reply('Возникла ошибка');
+          console.error(`FFmpeg
+          exited with an error: code ${code}, signal ${signal}`);
+        }
+      });
+
+      ffmpeg.stderr.on('data', (data) => {
+        console.log(`FFmpeg stderr: ${data}`);
+      });
+    } else {
+      ctx.reply('No suitable format found');
+      console.error('No suitable format found');
+    }
   } catch (error) {
     console.error(`Ошибка: ${error}`);
     ctx.reply(
       'Произошла ошибка при скачивании видео. Пожалуйста, убедитесь, что вы отправили правильную ссылку.'
     );
   }
-});
+};
+
+bot.start(handleStart);
+bot.help(handleHelp);
+bot.on('text', handleText);
 
 bot.launch();
