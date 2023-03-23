@@ -22,8 +22,10 @@
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "dotenv": "^16.0.3",
+    "ffmpeg-static": "^5.1.0",
+    "fluent-ffmpeg": "^2.1.2",
     "nodemon": "^2.0.22",
     "telegraf": "^4.12.2",
-    "youtube-dl-exec": "^2.4.0"
+    "ytdl-core": "^4.11.2"
   }
 }
