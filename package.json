@@ -1,0 +1,29 @@
+{
+  "name": "bot-download-youtube",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/newqwes/bot-download-YouTube.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/newqwes/bot-download-YouTube/issues"
+  },
+  "homepage": "https://github.com/newqwes/bot-download-YouTube#readme",
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "dotenv": "^16.0.3",
+    "nodemon": "^2.0.22",
+    "telegraf": "^4.12.2",
+    "youtube-dl-exec": "^2.4.0"
+  }
+}
