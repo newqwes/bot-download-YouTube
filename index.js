@@ -1,10 +1,10 @@
-import fs from 'fs';
-import { Telegraf } from 'telegraf';
-import ytdl from 'ytdl-core';
-import { path as ffmpegPath } from '@ffmpeg-installer/ffmpeg';
-import { spawn } from 'child_process';
+const fs = require('fs');
+const Telegraf = require('telegraf').Telegraf;
+const ytdl = require('ytdl-core');
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const { spawn } = require('child_process');
+const dotenv = require('dotenv');
 
-import dotenv from 'dotenv';
 dotenv.config();
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -20,8 +20,10 @@ const deleteFile = filePath => {
   });
 };
 
-const handleStart = ctx => ctx.reply('Привет! Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.');
-const handleHelp = ctx => ctx.reply('Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.');
+const handleStart = ctx =>
+  ctx.reply('Привет! Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.');
+const handleHelp = ctx =>
+  ctx.reply('Отправьте мне ссылку на видео с YouTube, и я скачаю и отправлю его вам.');
 
 const handleText = async ctx => {
   const url = ctx.message.text;
@@ -32,30 +34,35 @@ const handleText = async ctx => {
     const info = await ytdl.getInfo(url);
     const videoFormat = info.formats
       .filter(format => format.container === 'mp4')
-      .find(format => format.qualityLabel === '480p' ||
-      parseInt(format.height, 10) <= 480);
+      .find(format => format.qualityLabel === '480p' || parseInt(format.height, 10) <= 480);
 
-    const audioFormat = ytdl.chooseFormat(info.formats, { quality: 'highestaudio', filter: 'audioonly' });
+    const audioFormat = ytdl.chooseFormat(info.formats, {
+      quality: 'highestaudio',
+      filter: 'audioonly'
+    });
 
     if (videoFormat && audioFormat) {
       const videoStream = ytdl.downloadFromInfo(info, { format: videoFormat });
       const audioStream = ytdl.downloadFromInfo(info, { format: audioFormat });
 
       const ffmpegArgs = [
-        '-i', 'pipe:3',
-        '-i', 'pipe:4',
-        '-c:v', 'copy',
-        '-c:a', 'aac',
-        '-strict', 'experimental',
-        '-movflags', 'frag_keyframe+empty_moov',
+        '-i',
+        'pipe:3',
+        '-i',
+        'pipe:4',
+        '-c:v',
+        'copy',
+        '-c:a',
+        'aac',
+        '-strict',
+        'experimental',
+        '-movflags',
+        'frag_keyframe+empty_moov',
         outputFileName
       ];
 
       const ffmpeg = spawn(ffmpegPath, ffmpegArgs, {
-        stdio: [
-          'pipe', 'pipe', 'pipe',
-          'pipe', 'pipe',
-        ],
+        stdio: ['pipe', 'pipe', 'pipe', 'pipe', 'pipe']
       });
 
       videoStream.pipe(ffmpeg.stdio[3]);
@@ -74,7 +81,7 @@ const handleText = async ctx => {
         }
       });
 
-      ffmpeg.stderr.on('data', (data) => {
+      ffmpeg.stderr.on('data', data => {
         console.log(`FFmpeg stderr: ${data}`);
       });
     } else {
